@@ -19,8 +19,12 @@ func main() {
     secret := os.Getenv("SECRET")
     dbUrl  := os.Getenv("FAUNA_URL") //http://localhost:8443
 
+    log.Println("secret ", secret)
+    log.Println("dbUrl ", dbUrl)
+
     client := f.NewFaunaClient(secret, f.Endpoint(dbUrl))
-    
+    log.Println("client ", client)    
+
    // log.Println(event.Data)
    inputPet := `{"name":"Fuffy", "age":4}`
 
@@ -37,11 +41,11 @@ func main() {
     res, _ := client.Query(
            f.Get(
             f.MatchTerm(
-                f.Index("pet_by_name"),
+                f.Index("pets_by_name"),
                 "Fuffy",
             ),
         ),
-     )
+    )
 
      var pet2 Pet
 
@@ -50,6 +54,6 @@ func main() {
 
      data, _ := json.Marshal(pet2)
 
-    log.Println(string(data))
+    log.Println("final result: ", string(data))
 
 }
