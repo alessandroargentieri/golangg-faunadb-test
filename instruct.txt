@@ -1,0 +1,120 @@
+minikube start
+minikube addons enable ingress
+kubectl get pod -n kube-system | grep "nginx"
+echo "$(minikube ip) example.com" | sudo tee -a /etc/hosts
+
+export RELEASE=$(curl -s https://api.github.com/repos/kubeless/kubeless/releases/latest | grep tag_name | cut -d '"' -f 4)
+kubectl create ns kubeless
+kubectl create -f https://github.com/kubeless/kubeless/releases/download/$RELEASE/kubeless-$RELEASE.yaml
+
+kubectl get pods -n kubeless
+kubectl get deployment -n kubeless
+kubectl get customresourcedefinition
+
+WAIT UNTIL IT IS READY...
+
+export OS=$(uname -s| tr '[:upper:]' '[:lower:]')
+curl -OL https://github.com/kubeless/kubeless/releases/download/$RELEASE/kubeless_$OS-amd64.zip && \
+   unzip kubeless_$OS-amd64.zip && \
+   sudo mv bundles/kubeless_$OS-amd64/kubeless /usr/local/bin/
+
+kubeless get-server-config
+
+~~~~~~
+
+creazione dei due file hellowithdeps.go e go.mod
+creazione di faunadb.yaml
+
+kubectl apply -f faunadb.yaml
+kubectl exec -it faunadb-795b986ffc-zh5pg /bin/bash
+fauna create-database pets_db
+fauna create-key pets_db
+fauna shell pets_db
+CreateCollection({ name: "pets" })
+CreateIndex(
+    {
+      name: "pets_by_name",
+      source: Collection("pets"),
+      terms: [{ field: ["data", "name"] }]
+    })
+
+
+~~~~~~
+
+kubeless function deploy get-go-deps --runtime go1.14 --handler hellowithdeps.Hello --from-file hellowithdeps.go --dependencies go.mod --env SECRET=fnAD9h_L73ACAAoqcVJnNKCo7qdDQcrkPaJITTvY --env FAUNA_URL=http://faunadb.default.svc.cluster.local:8443
+kubeless trigger http create hello-trigger --function-name get-go-deps --path hi --hostname example.com --cors-enable
+curl -s -D - -X POST 'http://example.com/hi' -d '{"name": "Bon", "age": 3}'
+
+
+
+kubeless function update get-go-deps --runtime go1.14 --handler hellowithdeps.Hello --from-file hellowithdeps.go --dependencies go.mod --env SECRET=fnAD9iMvAVACALiMM33KhYsUTv4FkzGMchSOe9aM --env FAUNA_URL=http://faunadb.default.svc.cluster.local:8443
+
+~~~~~~~~
+
+kubeless function deploy save-pets --runtime go1.14 --handler petfunction.Save --from-file petfunction.go --dependencies go.mod --env SECRET=fnAD9h_L73ACAAoqcVJnNKCo7qdDQcrkPaJITTvY --env FAUNA_URL=http://faunadb.default.svc.cluster.local:8443
+
+kubeless function update save-pets --runtime go1.14 --handler petfunction.Save --from-file petfunction.go --dependencies go.mod --env SECRET=fnAD9h_L73ACAAoqcVJnNKCo7qdDQcrkPaJITTvY --env FAUNA_URL=http://faunadb.default.svc.cluster.local:8443
+
+kubeless trigger http create save-pets-trigger --function-name save-pets --path pets --hostname example.com --cors-enable
+echo "$(minikube ip) example.com" | sudo tee -a /etc/hosts
+
+curl -s -D - -X POST 'http://example.com/pets' -d '{"name": "Fussy", "age": 4}'
+
+
+
+
+
+
+
+
+
+
+################################
+
+
+
+
+minikube start
+echo "$(minikube ip) example.com" | sudo tee -a /etc/hosts
+minikube addons enable ingress
+export RELEASE=$(curl -s https://api.github.com/repos/kubeless/kubeless/releases/latest | grep tag_name | cut -d '"' -f 4)
+kubectl create ns kubeless
+kubectl create -f https://github.com/kubeless/kubeless/releases/download/$RELEASE/kubeless-$RELEASE.yaml
+kubectl get pods -n kubeless
+export OS=$(uname -s| tr '[:upper:]' '[:lower:]')
+curl -OL https://github.com/kubeless/kubeless/releases/download/$RELEASE/kubeless_$OS-amd64.zip && \
+   unzip kubeless_$OS-amd64.zip && \
+   sudo mv bundles/kubeless_$OS-amd64/kubeless /usr/local/bin/
+kubeless get-server-config
+cat > go.mod << EOF
+module function
+go 1.14
+require (
+github.com/sirupsen/logrus v1.6.0
+)
+EOF
+
+cat > hellowithdeps.go << EOF
+package kubeless
+import (
+      "os"
+      "github.com/kubeless/kubeless/pkg/functions"
+      "github.com/sirupsen/logrus"
+)
+func Hello(event functions.Event, context functions.Context) (string, error) {
+secret := os.Getenv("SECRET")
+    dbUrl  := os.Getenv("FAUNA_URL") //http://localhost:8443
+    logrus.Info(event.Data)
+    return "Hello Secret:" + secret + " , Url: " + dbUrl, nil
+}
+EOF
+kubeless function deploy get-go-deps --runtime go1.14 --handler hellowithdeps.Hello --from-file hellowithdeps.go --dependencies go.mod --env SECRET=fnAD9iMvAVACALiMM33KhYsUTv4FkzGMchSOe9aM --env FAUNA_URL=http://faunadb.com:8443
+kubeless function ls
+
+kubeless trigger http create hello-trigger --function-name get-go-deps --path hi --hostname example.com --cors-enable
+curl -s -D - -X POST 'http://example.com/hi' -d '{"name": "Bob", "age":34}'
+
+
+
+
+
